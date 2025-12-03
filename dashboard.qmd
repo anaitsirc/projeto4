@@ -6,316 +6,516 @@ format:
     toc: true
     code-fold: true
 ---
-
 # Introdução
 Dashboard interativo dos resultados eleitorais 2025.
 
 ```{ojs}
-// CÉLULA 1: Carregamento de Dados e GeoJSON
-// Assumindo que os ficheiros estão configurados corretamente no Quarto
+// CÉLULA 1: Carregamento de Dados
+// | label: load-data
+// | echo: false
+
+// Carregar scripts e CSS
+html`
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/d3@7"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+`
+
+// Carregar GeoJSON dos distritos
 districtData = FileAttachment("data/ContinenteDistritos.geojson").json()
 
-// O seu JSON de resultados (ele é grande, por isso vou assumir que o 'electionData'
-// é a variável que contém a estrutura completa que me enviou).
-// Se o seu ficheiro for externo, use FileAttachment("resultados.json").json()
-electionData = { 
-"Inscritos":{"Aveiro":642045,"Beja":118320,"Braga":782390,"Bragança":132758,"Castelo Branco":162574,"Coimbra":370773,"Évora":132625,"Faro":383944,"Guarda":139506,"Leiria":411995,"Lisboa":1914014,"Portalegre":90045,"Porto":1591357,"Santarém":377415,"Setúbal":754726,"Viana do Castelo":232581,"Vila Real":206897,"Viseu":334039,"RA Açores":230289,"RA Madeira":255801,"Europa":948062,"Fora da Europa":636660,"Total":10848816},
-"Votantes":{"Aveiro":414346,"Beja":73743,"Braga":545324,"Bragança":69983,"Castelo Branco":104076,"Coimbra":231323,"Évora":84924,"Faro":230429,"Guarda":81621,"Leiria":265074,"Lisboa":1274521,"Portalegre":56083,"Porto":1097509,"Santarém":244177,"Setúbal":491419,"Viana do Castelo":139894,"Vila Real":113842,"Viseu":206816,"RA Açores":100910,"RA Madeira":138937,"Europa":256784,"Fora da Europa":98234,"Total":6319969},
-"ADN":{"Aveiro":6989,"Beja":713,"Braga":5333,"Bragança":1071,"Castelo Branco":1874,"Coimbra":3753,"Évora":983,"Faro":4190,"Guarda":1662,"Leiria":5746,"Lisboa":15454,"Portalegre":601,"Porto":11283,"Santarém":3971,"Setúbal":4185,"Viana do Castelo":2047,"Vila Real":1714,"Viseu":4190,"RA Açores":1666,"RA Madeira":1551,"Europa":1201,"Fora da Europa":1483,"Total":81660},
-"B.E.":{"Aveiro":7028,"Beja":1365,"Braga":10041,"Bragança":590,"Castelo Branco":1716,"Coimbra":5028,"Évora":1487,"Faro":5732,"Guarda":1010,"Leiria":5100,"Lisboa":29959,"Portalegre":716,"Porto":22219,"Santarém":4371,"Setúbal":13072,"Viana do Castelo":2285,"Vila Real":1144,"Viseu":2465,"RA Açores":2106,"RA Madeira":1871,"Europa":4743,"Fora da Europa":1760,"Total":125808},
-"CH":{"Aveiro":85834,"Beja":20447,"Braga":119858,"Bragança":14290,"Castelo Branco":24322,"Coimbra":42547,"Évora":21082,"Faro":78135,"Guarda":17249,"Leiria":61180,"Lisboa":266214,"Portalegre":16801,"Porto":227009,"Santarém":68742,"Setúbal":129763,"Viana do Castelo":32143,"Vila Real":22786,"Viseu":45801,"RA Açores":23059,"RA Madeira":29048,"Europa":72010,"Fora da Europa":20234,"Total":1438554},
-"E":{"Aveiro":525,"Beja":87,"Braga":528,"Bragança":80,"Castelo Branco":145,"Coimbra":341,"Évora":83,"Faro":486,"Guarda":80,"Leiria":368,"Lisboa":2181,"Portalegre":51,"Porto":1630,"Santarém":424,"Setúbal":713,"Viana do Castelo":276,"Vila Real":132,"Viseu":228,"RA Açores":119,"RA Madeira":186,"Europa":252,"Fora da Europa":131,"Total":9046},
-"IL":{"Aveiro":23452,"Beja":1439,"Braga":36698,"Bragança":1541,"Castelo Branco":3146,"Coimbra":10275,"Évora":2415,"Faro":10056,"Guarda":1995,"Leiria":15971,"Lisboa":97200,"Portalegre":1078,"Porto":67076,"Santarém":9597,"Setúbal":27074,"Viana do Castelo":5344,"Vila Real":2482,"Viseu":6468,"RA Açores":3484,"RA Madeira":3665,"Europa":6452,"Fora da Europa":2066,"Total":338974},
-"JPP":{"Aveiro":"-","Beja":"-","Braga":307,"Bragança":"-","Castelo Branco":"-","Coimbra":154,"Évora":"-","Faro":264,"Guarda":"-","Leiria":"-","Lisboa":820,"Portalegre":"-","Porto":731,"Santarém":"-","Setúbal":452,"Viana do Castelo":"-","Vila Real":"-","Viseu":"-","RA Açores":271,"RA Madeira":17113,"Europa":551,"Fora da Europa":237,"Total":20900},
-"L":{"Aveiro":12752,"Beja":1547,"Braga":16618,"Bragança":793,"Castelo Branco":2652,"Coimbra":9386,"Évora":2296,"Faro":7735,"Guarda":1229,"Leiria":9299,"Lisboa":87618,"Portalegre":965,"Porto":47232,"Santarém":7860,"Setúbal":28622,"Viana do Castelo":3640,"Vila Real":1740,"Viseu":4395,"RA Açores":2539,"RA Madeira":1750,"Europa":5626,"Fora da Europa":997,"Total":257291},
-"MPT":{"Aveiro":"-","Beja":"-","Braga":"-","Bragança":"-","Castelo Branco":"-","Coimbra":"-","Évora":"-","Faro":"-","Guarda":"-","Leiria":"-","Lisboa":"-","Portalegre":"-","Porto":"-","Santarém":"-","Setúbal":"-","Viana do Castelo":"-","Vila Real":"-","Viseu":"-","RA Açores":122,"RA Madeira":356,"Europa":"-","Fora da Europa":"-","Total":478},
-"NC":{"Aveiro":289,"Beja":"-","Braga":"-","Bragança":"-","Castelo Branco":"-","Coimbra":"-","Évora":106,"Faro":"-","Guarda":117,"Leiria":"-","Lisboa":756,"Portalegre":"-","Porto":1106,"Santarém":"-","Setúbal":389,"Viana do Castelo":"-","Vila Real":"-","Viseu":"-","RA Açores":"-","RA Madeira":"-","Europa":343,"Fora da Europa":198,"Total":3304},
-"ND":{"Aveiro":472,"Beja":97,"Braga":889,"Bragança":"-","Castelo Branco":"-","Coimbra":245,"Évora":"-","Faro":425,"Guarda":"-","Leiria":723,"Lisboa":2021,"Portalegre":"-","Porto":1807,"Santarém":"-","Setúbal":682,"Viana do Castelo":"-","Vila Real":"-","Viseu":432,"RA Açores":"-","RA Madeira":434,"Europa":504,"Fora da Europa":1485,"Total":10216},
-"PAN":{"Aveiro":5134,"Beja":636,"Braga":5183,"Bragança":455,"Castelo Branco":946,"Coimbra":2829,"Évora":790,"Faro":4166,"Guarda":607,"Leiria":3104,"Lisboa":23387,"Portalegre":386,"Porto":16402,"Santarém":2751,"Setúbal":9223,"Viana do Castelo":1301,"Vila Real":775,"Viseu":"-","RA Açores":1314,"RA Madeira":1450,"Europa":4072,"Fora da Europa":2019,"Total":86930},
-"PCP-PEV":{"Aveiro":4924,"Beja":10000,"Braga":9182,"Bragança":725,"Castelo Branco":2228,"Coimbra":5807,"Évora":8636,"Faro":6172,"Guarda":1037,"Leiria":5471,"Lisboa":45452,"Portalegre":2933,"Porto":24985,"Santarém":8781,"Setúbal":34914,"Viana do Castelo":2764,"Vila Real":1403,"Viseu":2491,"RA Açores":1224,"RA Madeira":1758,"Europa":2214,"Fora da Europa":585,"Total":183686},
-"PCTP/MRPP":{"Aveiro":1008,"Beja":455,"Braga":"c.r.","Bragança":"-","Castelo Branco":301,"Coimbra":"-","Évora":"-","Faro":"-","Guarda":"-","Leiria":"-","Lisboa":3659,"Portalegre":254,"Porto":2142,"Santarém":"-","Setúbal":2993,"Viana do Castelo":"-","Vila Real":"-","Viseu":"-","RA Açores":"-","RA Madeira":"-","Europa":785,"Fora da Europa":299,"Total":11896},
-"PLS":{"Aveiro":"-","Beja":"-","Braga":"-","Bragança":"-","Castelo Branco":"-","Coimbra":"-","Évora":"-","Faro":"-","Guarda":"-","Leiria":"-","Lisboa":1901,"Portalegre":"-","Porto":3597,"Santarém":"-","Setúbal":847,"Viana do Castelo":"-","Vila Real":"-","Viseu":"-","RA Açores":"-","RA Madeira":"-","Europa":442,"Fora da Europa":545,"Total":7332},
-"PPD/PSD.CDS-PP":{"Aveiro":163669,"Beja":15407,"Braga":198026,"Bragança":30628,"Castelo Branco":33625,"Coimbra":79549,"Évora":21071,"Faro":59380,"Guarda":32295,"Leiria":98249,"Lisboa":362844,"Portalegre":14962,"Porto":375731,"Santarém":74742,"Setúbal":103213,"Viana do Castelo":55374,"Vila Real":50525,"Viseu":88385,"RA Açores":"-","RA Madeira":57440,"Europa":37411,"Fora da Europa":19076,"Total":1971602},
-"PPD/PSD.CDS-PP.PPM":{"Aveiro":"-","Beja":"-","Braga":"-","Bragança":"-","Castelo Branco":"-","Coimbra":"-","Évora":"-","Faro":"-","Guarda":"-","Leiria":"-","Lisboa":"-","Portalegre":"-","Porto":"-","Santarém":"-","Setúbal":"-","Viana do Castelo":"-","Vila Real":"-","Viseu":"-","RA Açores":36886,"RA Madeira":"-","Europa":"-","Fora da Europa":"-","Total":36886},
-"PS":{"Aveiro":90030,"Beja":19536,"Braga":125593,"Bragança":17785,"Castelo Branco":29764,"Coimbra":63405,"Évora":23617,"Faro":47321,"Guarda":21554,"Leiria":50329,"Lisboa":301787,"Portalegre":15746,"Porto":263792,"Santarém":55570,"Setúbal":122858,"Viana do Castelo":30395,"Vila Real":27990,"Viseu":45219,"RA Açores":23825,"RA Madeira":18704,"Europa":34582,"Fora da Europa":13144,"Total":1442546},
-"PTP":{"Aveiro":"-","Beja":"-","Braga":"-","Bragança":"-","Castelo Branco":"-","Coimbra":"-","Évora":"-","Faro":"-","Guarda":"-","Leiria":"-","Lisboa":"-","Portalegre":"-","Porto":"-","Santarém":"-","Setúbal":"-","Viana do Castelo":"-","Vila Real":"-","Viseu":"-","RA Açores":"-","RA Madeira":425,"Europa":"-","Fora da Europa":"-","Total":425},
-"R.I.R.":{"Aveiro":936,"Beja":135,"Braga":1280,"Bragança":97,"Castelo Branco":199,"Coimbra":475,"Évora":138,"Faro":512,"Guarda":134,"Leiria":587,"Lisboa":2196,"Portalegre":79,"Porto":3945,"Santarém":539,"Setúbal":749,"Viana do Castelo":315,"Vila Real":183,"Viseu":548,"RA Açores":135,"RA Madeira":346,"Europa":329,"Fora da Europa":164,"Total":14021},
-"VP":{"Aveiro":580,"Beja":93,"Braga":694,"Bragança":86,"Castelo Branco":198,"Coimbra":400,"Évora":142,"Faro":437,"Guarda":118,"Leiria":483,"Lisboa":3157,"Portalegre":71,"Porto":2479,"Santarém":498,"Setúbal":887,"Viana do Castelo":209,"Vila Real":114,"Viseu":246,"RA Açores":"-","RA Madeira":"-","Europa":945,"Fora da Europa":313,"Total":12150}
-}
+// Carregar dados eleitorais
+electionData = FileAttachment("data/legislativas.json").json()
 ```
 
 ```{ojs}
-//CÉLULA2:ConfiguraçãoeVariáveisdeEstado(output:false)
-//output:false
-//CoresdosPartidos(Consistentecoma paleta eleitoral)
+// CÉLULA 2: Configuração e Variáveis
+// | label: setup
+// | echo: false
+
+// Cores dos Partidos
 function getPartyColors() {
     return {
-        "PS": "#dd438b", 
-        "PPD/PSD.CDS-PP": "#f58c00", // Coligação principal
+        "PS": "#dd438b",
+        "PPD/PSD.CDS-PP": "#f58c00",
         "CH": "#02264b",
         "IL": "#0ea5e9",
         "B.E.": "#9b2226",
         "PCP-PEV": "#ff0000",
         "L": "#4ade80",
         "PAN": "#22c55e",
-        "ADN": "#7e40a0", // Roxo (exemplo)
-        "E": "#8b4513" // Castanho (exemplo)
-        // Adicione mais se for usar o sunburst completo
+        "ADN": "#7e40a0",
+        "E": "#8b4513",
+        "JPP": "#FFD700",
+        "MPT": "#228B22",
+        "NC": "#800080",
+        "ND": "#FF4500",
+        "PCTP/MRPP": "#8B0000",
+        "PLS": "#00CED1",
+        "PPD/PSD.CDS-PP.PPM": "#FF8C00",
+        "PTP": "#32CD32",
+        "R.I.R.": "#4682B4",
+        "VP": "#FF69B4"
     };
 }
-// Lista de Partidos (excluindo Inscritos, Votantes e coligações regionais)
+
+// Lista de partidos (excluindo Inscritos e Votantes)
 function getPartidos() {
-    return Object.keys(electionData).filter(partido => 
-        partido !== "Inscritos" && partido !== "Votantes" && partido !== "PPD/PSD.CDS-PP.PPM"
+    return Object.keys(electionData).filter(key => 
+        key !== "Inscritos" && key !== "Votantes"
     );
 }
-// Variável reativa para o Distrito Selecionado (Parte 1.1)
-mutable selectedDistrict = "Lisboa" 
-// Dropdown para seleção de Partido no Mapa de Intensidade (Parte 1.2)
+
+// Variável reativa para distrito selecionado
+mutable selectedDistrict = "Lisboa"
+
+// Dropdown para seleção de partido
 viewof selectedParty = Inputs.select(getPartidos(), {
     label: "Selecionar Partido para Mapa de Intensidade",
-    value: "PS" 
+    value: "PS"
 })
-// Dropdown para alternar o modo de visualização do mapa
+
+// Dropdown para modo do mapa
 viewof selectedMapMode = Inputs.select(['VENCEDOR', 'INTENSIDADE'], {
     label: "Modo de Visualização do Mapa",
     value: 'VENCEDOR'
 })
-// Definição do Container do Mapa
-mapDiv = html`<div style="height: 500px;"></div>`
+
 ```
 
 # Funções de Análise e Métricas
 
 ```{ojs}
-// CÉLULA 3: Funções de Análise Central (output: false)
-// output: false
-// Função para limpar e obter os resultados por Distrito (Para Vencedor e Tabela)
+// CÉLULA 3: Funções de Análise
+// | label: analysis-functions
+// | echo: false
+
+// Função para converter valores especiais
+function parseVotos(valor) {
+    if (valor === "-" || valor === "c.r." || valor === undefined || valor === null) {
+        return 0;
+    }
+    if (typeof valor === 'string') {
+        return parseInt(valor.replace(/\s/g, '')) || 0;
+    }
+    return Number(valor) || 0;
+}
+
+// Função para obter resultados de um distrito
 function getDistrictResults(districtName) {
     const results = [];
-    const partidos = getPartidos(); 
+    const partidos = getPartidos();
+    
     for (const partido of partidos) {
-        // Limpa '-', 'c.r.' e undefined para 0
-        let votos = electionData[partido] ? electionData[partido][districtName] : 0;
-        if (votos === "-" || votos === "c.r." || votos === undefined) {
-            votos = 0;
-        } else {
-            votos = parseInt(votos);
-        }  
+        const votos = parseVotos(electionData[partido]?.[districtName]);
         if (votos > 0) {
-            results.push({ partido, votos });
+            results.push({ 
+                partido, 
+                votos,
+                percentagem: ((votos / (electionData.Votantes[districtName] || 1)) * 100).toFixed(2)
+            });
         }
     }
-    // Ordena do maior para o menor
+    
     return results.sort((a, b) => b.votos - a.votos);
 }
-// Função para obter a cor do partido mais votado no distrito (Mapa 1.1)
-function getWinnerColor(districtName) {
+
+// Função para obter o partido vencedor
+function getWinner(districtName) {
     const results = getDistrictResults(districtName);
-    if (results.length === 0 || results[0].votos === 0) return "#b3afafab"; 
-    return getPartyColors()[results[0].partido] || "#b3afafab";
+    return results.length > 0 ? results[0].partido : null;
 }
-// Função para calcular a intensidade de voto (Mapa 1.2)
+
+// Função para obter a cor do vencedor
+function getWinnerColor(districtName) {
+    const winner = getWinner(districtName);
+    const colors = getPartyColors();
+    return winner ? (colors[winner] || "#b3afaf") : "#b3afaf";
+}
+
+// Função para calcular intensidade
 function calcularIntensidade(partido, distrito) {
-    let votosPartido = electionData[partido] ? electionData[partido][distrito] : 0;
-    if (votosPartido === "-" || votosPartido === "c.r." || votosPartido === undefined) {
-        votosPartido = 0;
-    } else {
-        votosPartido = parseInt(votosPartido);
-    }
-    const votosDistrito = electionData["Votantes"][distrito] || 1; 
-    if (votosPartido === 0) return 0.1; 
-    // Intensidade = Votos no Partido / Votos Totais no Distrito
-    return votosPartido / votosDistrito;
+    const votosPartido = parseVotos(electionData[partido]?.[distrito]);
+    const votosDistrito = electionData.Votantes[distrito] || 1;
+    
+    if (votosPartido === 0 || votosDistrito === 0) return 0.1;
+    return Math.min(0.9, Math.max(0.1, votosPartido / votosDistrito));
 }
-// Cálculo das métricas nacionais (Parte 2.1)
-totalVoters = electionData.Inscritos.Total
-totalVotes = electionData.Votantes.Total
-nationalAbstention = ((totalVoters - totalVotes) / totalVoters * 100).toFixed(2)
-const nacionalResults = getDistrictResults("Total");
-nationalWinner = nacionalResults.length > 0 ? nacionalResults[0].partido : "N/A";
+
+// Cálculo de métricas nacionais
+totalInscritos = electionData.Inscritos.Total
+totalVotantes = electionData.Votantes.Total
+taxaAbstencao = ((totalInscritos - totalVotantes) / totalInscritos * 100).toFixed(2)
+taxaParticipacao = (totalVotantes / totalInscritos * 100).toFixed(2)
+
+// Encontrar vencedor nacional
+function getNationalWinner() {
+    const resultados = getDistrictResults("Total");
+    return resultados.length > 0 ? resultados[0] : null;
+}
+
+vencedorNacional = getNationalWinner()
 ```
 
 
 # Visualização: Mapa Interativo (Leaflet)
 
 ```{ojs}
-// CÉLULA 4: Renderização do Mapa e Lógica de Estilo (Parte 1.1, 1.2, 1.3)
-map = { // A função de estilo muda de acordo com a seleção do dropdown selectedMapMode
-    const currentStyle = (feature) => {
-        const distrito = feature.properties.Distrito.toUpperCase();
-        const isSelected = distrito === mutable selectedDistrict.toUpperCase();
-        if (selectedMapMode === 'VENCEDOR') { // Estilo para Mapa 1.1
+// CÉLULA 4: Mapa Leaflet
+// | label: map
+// | echo: false
+
+// Criar container para o mapa
+mapDiv = html`<div id="map-container" style="height: 500px; border-radius: 8px; border: 1px solid #ddd;"></div>`
+
+// Inicializar mapa quando a célula for executada
+{
+    // Aguardar Leaflet carregar
+    if (typeof L !== 'undefined') {
+        const map = L.map('map-container').setView([39.5, -8.0], 6);
+        
+        // Adicionar camada base
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+        
+        // Função para obter estilo do polígono
+        function getStyle(feature) {
+            const distrito = feature.properties.Distrito;
+            const isSelected = distrito === mutable selectedDistrict;
+            
+            let fillColor, fillOpacity;
+            
+            if (selectedMapMode === 'VENCEDOR') {
+                fillColor = getWinnerColor(distrito);
+                fillOpacity = 0.7;
+            } else {
+                const intensidade = calcularIntensidade(selectedParty, distrito);
+                fillColor = getPartyColors()[selectedParty] || "#b3afaf";
+                fillOpacity = Math.max(0.2, intensidade);
+            }
+            
             return {
-                fillColor: getWinnerColor(distrito),
-                fillOpacity: 0.7,
-                color: isSelected ? 'black' : '#4b4b4bff',
+                fillColor: fillColor,
+                fillOpacity: fillOpacity,
+                color: isSelected ? '#000000' : '#333333',
                 weight: isSelected ? 3 : 1,
-                dashArray: isSelected ? '5, 5' : '1'
-            };
-        } else { // Estilo para Mapa 1.2: Intensidade
-            const intensidade = calcularIntensidade(selectedParty, distrito);
-            return {
-                fillColor: getPartyColors()[selectedParty] || "#b3afafab", // Usa a cor do partido selecionado
-                fillOpacity: Math.max(0.1, intensidade * 0.9), // Opacidade pela intensidade
-                color: isSelected ? 'black' : '#4b4b4bff',
-                weight: isSelected ? 3 : 1,
-                dashArray: isSelected ? '5, 5' : '1'
+                opacity: 0.8
             };
         }
-    };
-    // Inicialização do Mapa Leaflet
-    const mapInstance = L.map(mapDiv, {
-        zoomControl: true, 
-        scrollWheelZoom: true 
-    }).setView([39.5, -8.0], 6); 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapInstance);
-    // Adição da camada GeoJSON
-    L.geoJSON(districtData, {
-        style: currentStyle,
-        onEachFeature: (feature, layer) => {
-            const nome = feature.properties.Distrito;
-            // Tooltip com nome do distrito (Parte 1.1)
-            layer.bindTooltip(`Distrito: ${nome}`, { sticky: true });
-            // Interatividade - Clique (Atualiza Tabela)
-            layer.on("click", () => {
-                mutable selectedDistrict = nome;
-            });
-            // Highlight Visual (Parte 1.3)
-            layer.on({
-                mouseover: (e) => { layer.setStyle({ weight: 3, color: 'blue' }); },
-                mouseout: (e) => { 
-                    const isSelected = nome.toUpperCase() === mutable selectedDistrict.toUpperCase();
-                    layer.setStyle({ 
-                        weight: isSelected ? 3 : 1, 
-                        color: isSelected ? 'black' : '#4b4b4bff' 
-                    });
+        
+        // Adicionar camada GeoJSON
+        const geojsonLayer = L.geoJSON(districtData, {
+            style: getStyle,
+            onEachFeature: function(feature, layer) {
+                const nome = feature.properties.Distrito;
+                const vencedor = getWinner(nome);
+                const votantes = electionData.Votantes[nome] || 0;
+                const inscritos = electionData.Inscritos[nome] || 1;
+                const abstencao = (((inscritos - votantes) / inscritos) * 100).toFixed(1);
+                
+                // Tooltip
+                let tooltipContent = `
+                    <strong>${nome}</strong><br/>
+                    Vencedor: ${vencedor || 'N/A'}<br/>
+                    Votantes: ${votantes.toLocaleString('pt-PT')}<br/>
+                    Abstenção: ${abstencao}%
+                `;
+                
+                if (selectedMapMode === 'INTENSIDADE') {
+                    const votosPartido = parseVotos(electionData[selectedParty]?.[nome]);
+                    const percentagem = ((votosPartido / votantes) * 100).toFixed(1);
+                    tooltipContent += `<br/>${selectedParty}: ${votosPartido.toLocaleString('pt-PT')} (${percentagem}%)`;
                 }
-            });
-        }
-    }).addTo(mapInstance);
-    return mapDiv;
+                
+                layer.bindTooltip(tooltipContent);
+                
+                // Eventos
+                layer.on({
+                    click: function() {
+                        mutable selectedDistrict = nome;
+                    },
+                    mouseover: function(e) {
+                        layer.setStyle({ weight: 3, color: '#0066cc' });
+                    },
+                    mouseout: function(e) {
+                        const style = getStyle(feature);
+                        layer.setStyle(style);
+                    }
+                });
+            }
+        }).addTo(map);
+        
+        // Ajustar mapa aos limites
+        map.fitBounds(geojsonLayer.getBounds());
+    }
 }
+
+mapDiv
 ```
 # Visualização: Painel de Métricas e Tabela
 ```{ojs} 
-// CÉLULA 5: Painel de Métricas (Parte 2.1)
+// CÉLULA 5: Painel de Métricas
+// | label: metrics
+// | echo: false
+
 html`
-<h2>📊 Métricas Eleitorais Nacionais</h2>
-<div style="display: flex; gap: 20px; font-family: sans-serif;">
-    <div style="padding: 15px; border-radius: 5px; border: 1px solid #ccc; flex-grow: 1;">
-        <div style="font-size: 1.5em; font-weight: bold;">${nationalAbstention}%</div>
-        <div style="font-size: 0.9em; color: #555;">Taxa de Abstenção Nacional</div>
+<div class="metrics-panel">
+    <h2>📊 Métricas Eleitorais</h2>
+    <div class="metrics-grid">
+        <div class="metric-card">
+            <div class="metric-value">${totalInscritos.toLocaleString('pt-PT')}</div>
+            <div class="metric-label">Total de Inscritos</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-value">${totalVotantes.toLocaleString('pt-PT')}</div>
+            <div class="metric-label">Total de Votantes</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-value">${taxaAbstencao}%</div>
+            <div class="metric-label">Taxa de Abstenção</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-value">${taxaParticipacao}%</div>
+            <div class="metric-label">Taxa de Participação</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-value">${vencedorNacional ? vencedorNacional.partido : 'N/A'}</div>
+            <div class="metric-label">Partido Mais Votado</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-value">${vencedorNacional ? vencedorNacional.votos.toLocaleString('pt-PT') : '0'}</div>
+            <div class="metric-label">Votos do Vencedor Nacional</div>
+        </div>
     </div>
-    <div style="padding: 15px; border-radius: 5px; border: 1px solid #ccc; flex-grow: 1;">
-        <div style="font-size: 1.5em; font-weight: bold;">${nationalWinner}</div>
-        <div style="font-size: 0.9em; color: #555;">Partido Mais Votado Nacionalmente</div>
-    </div>
-    ${
-        // Função para encontrar o distrito com menor abstenção (Exemplo de métrica)
-        ((() => {
-            let menorTaxa = 100;
-            let distritoMenor = "";
-            for (const [distrito, inscritos] of Object.entries(electionData.Inscritos)) {
-                if (distrito !== "Total" && distrito.indexOf("RA") === -1 && distrito.indexOf("Europa") === -1) {
-                    const votantes = electionData.Votantes[distrito] || 0;
-                    const taxa = 100 - (votantes / inscritos * 100);
-                    if (taxa < menorTaxa) {
-                        menorTaxa = taxa;
-                        distritoMenor = distrito;
-                    }
-                }
-            }
-            return `
-            <div style="padding: 15px; border-radius: 5px; border: 1px solid #ccc; flex-grow: 1;">
-                <div style="font-size: 1.5em; font-weight: bold;">${distritoMenor}</div>
-                <div style="font-size: 0.9em; color: #555;">Distrito com Menor Abstenção (${menorTaxa.toFixed(2)}%)</div>
-            </div>
-            `;
-        })())
-    }
 </div>
+
+<style>
+.metrics-panel {
+    margin: 20px 0;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.metric-card {
+    background: white;
+    padding: 15px;
+    border-radius: 6px;
+    border-left: 4px solid #007bff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.metric-value {
+    font-size: 1.8em;
+    font-weight: bold;
+    color: #333;
+}
+
+.metric-label {
+    font-size: 0.9em;
+    color: #666;
+    margin-top: 5px;
+}
+</style>
 `
 ```
 ```{ojs} 
-// CÉLULA 6: Tabela Interativa de Resultados (Reage ao clique do mapa)
-districtTable = {
+// CÉLULA 6: Tabela de Resultados
+// | label: results-table
+// | echo: false
+
+{
     const results = getDistrictResults(mutable selectedDistrict);
-    // Filtra a tabela apenas para o partido selecionado se estiver no modo INTENSIDADE
-    const filteredResults = selectedMapMode === 'INTENSIDADE' 
-        ? results.filter(r => r.partido === selectedParty) 
-        : results;
+    const totalVotosDistrito = electionData.Votantes[mutable selectedDistrict] || 1;
+    
+    const tableData = results.map(r => ({
+        Partido: r.partido,
+        Votos: r.votos,
+        Percentagem: `${((r.votos / totalVotosDistrito) * 100).toFixed(2)}%`
+    }));
+    
     return html`
-        <h4>🗳️ Votos no Distrito: **${mutable selectedDistrict}**</h4>
-        ${Inputs.table(filteredResults, {
-            columns: ["partido", "votos"],
+    <div class="table-container">
+        <h3>🗳️ Resultados no Distrito: <strong>${mutable selectedDistrict}</strong></h3>
+        <p>Total de votantes: ${totalVotosDistrito.toLocaleString('pt-PT')}</p>
+        ${Inputs.table(tableData, {
+            columns: ["Partido", "Votos", "Percentagem"],
             format: {
-                votos: (d) => d.toLocaleString("pt-PT")
-            }
+                Votos: d => d.toLocaleString('pt-PT'),
+                Partido: d => {
+                    const color = getPartyColors()[d] || '#999';
+                    return html`<span style="color:${color}; font-weight:bold;">${d}</span>`;
+                }
+            },
+            rows: 10,
+            sort: "Votos",
+            reverse: true
         })}
+    </div>
+    
+    <style>
+    .table-container {
+        margin-top: 20px;
+        padding: 15px;
+        background: white;
+        border-radius: 6px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    </style>
     `;
 }
+
 ```
 
-# Visualização: Sunburst Hierárquico
 ```{ojs} 
-// CÉLULA 7: Transformação de Dados para Sunburst (output: false)
-// output: false
-function convertByParty() {
-    const root = { name: "Portugal (Total de Votos)", children: [] };
+// CÉLULA 7: Preparar dados Sunburst
+// | label: sunburst-data
+// | echo: false
+
+function prepareSunburstData() {
+    const root = {
+        name: "Portugal",
+        children: []
+    };
+    
     getPartidos().forEach(partido => {
-        const partidoNode = { name: partido, children: [] };
-        for (const [distrito, votosRaw] of Object.entries(electionData[partido])) {
-            let votos = votosRaw;
-            if (votos === "-" || votos === "c.r." || votos === undefined) {
-                votos = 0;
-            } else {
-                votos = parseInt(votos);
-            }
-            // Inclui apenas círculos normais e regiões autónomas com votos > 0
-            if (distrito !== "Total" && distrito.indexOf("Europa") === -1 && votos > 0) {
-                partidoNode.children.push({ name: distrito, value: votos });
+        const partidoNode = {
+            name: partido,
+            children: []
+        };
+        
+        for (const distrito in electionData[partido]) {
+            if (distrito !== "Total" && distrito !== "Europa" && distrito !== "Fora da Europa") {
+                const votos = parseVotos(electionData[partido][distrito]);
+                if (votos > 0) {
+                    partidoNode.children.push({
+                        name: distrito,
+                        value: votos
+                    });
+                }
             }
         }
-        if (partidoNode.children.length > 0) {
+        
+        partidoNode.value = partidoNode.children.reduce((sum, child) => sum + child.value, 0);
+        
+        if (partidoNode.value > 0) {
             root.children.push(partidoNode);
         }
     });
+    
+    root.value = root.children.reduce((sum, child) => sum + child.value, 0);
+    
     return root;
 }
 
-flareData = convertByParty()
+sunburstData = prepareSunburstData()
 ```
+
+
+
+# Visualização: Sunburst Hierárquico
 ```{ojs} 
-// CÉLULA 8: Preparação e Renderização do Sunburst (Requer D3.js)
-// Assumindo que a biblioteca D3 está disponível
-sunburstChart ={
-    // 1. Preparação da Hierarquia (Reutilizado do seu código)
-    const hierarchy = d3.hierarchy(flareData)
+// CÉLULA 8: Gráfico Sunburst
+// | label: sunburst-chart
+// | echo: false
+
+{
+    // Verificar se D3 está carregado
+    if (typeof d3 === 'undefined') {
+        return html`<div style="color: red; padding: 20px; border: 2px solid red;">
+            <h3>❌ D3.js não carregado</h3>
+            <p>Adicione no cabeçalho: <code>include-after-body: - &lt;script src="https://unpkg.com/d3@7"&gt;&lt;/script&gt;</code></p>
+        </div>`;
+    }
+    
+    const width = 600;
+    const height = 600;
+    const radius = Math.min(width, height) / 2;
+    
+    const svg = d3.create("svg")
+        .attr("width", width)
+        .attr("height", height)
+        .attr("viewBox", [-width / 2, -height / 2, width, height])
+        .attr("style", "max-width: 100%; height: auto;");
+    
+    const root = d3.hierarchy(sunburstData)
         .sum(d => d.value)
         .sort((a, b) => b.value - a.value);
-    // 2. Definição do layout Sunburst
-    const width = 600;
-    const radius = width / 6;
-    const partition = data => d3.partition()
-        .size([2 * Math.PI, radius * radius])(hierarchy) // Adaptação para o Sunburst
-        .each(d => d.current = d);
-    const root = partition(flareData);
-    // 3. Criação do SVG
-    const svg = d3.create("svg")
-        .attr("viewBox", `0 0 ${width} ${width}`)
-        .style("font", "10px sans-serif");
-    // ... (O código D3.js para desenhar o Sunburst, cores, zoom e tooltips é complexo
-    // e extenso para este contexto, por isso deixo a estrutura e o link)
-    // **NOTA:** Para a renderização completa do Sunburst com zoom e tooltips,
-    // utilize o código de um exemplo D3/Observable (como o que mencionou: 
-    // [https://observablehq.com/@d3/zoomable-sunburst](https://observablehq.com/@d3/zoomable-sunburst)), aplicando o 'root' e
-    // as suas 'getPartyColors'.
+    
+    const partition = d3.partition()
+        .size([2 * Math.PI, radius]);
+    
+    const arc = d3.arc()
+        .startAngle(d => d.x0)
+        .endAngle(d => d.x1)
+        .innerRadius(d => d.y0)
+        .outerRadius(d => d.y1);
+    
+    partition(root);
+    
+    const partyColors = getPartyColors();
+    const colorScale = d3.scaleOrdinal()
+        .domain(getPartidos())
+        .range(getPartidos().map(p => partyColors[p] || "#cccccc"));
+    
+    // Desenhar arcos
+    svg.selectAll("path")
+        .data(root.descendants().filter(d => d.depth))
+        .join("path")
+        .attr("d", arc)
+        .style("fill", d => {
+            if (d.depth === 1) return colorScale(d.data.name);
+            if (d.depth === 2) {
+                const baseColor = colorScale(d.parent.data.name);
+                return d3.color(baseColor).brighter(0.5);
+            }
+            return "#eee";
+        })
+        .style("opacity", 0.8)
+        .style("stroke", "#fff")
+        .style("stroke-width", 1)
+        .on("mouseover", function(event, d) {
+            d3.select(this).style("opacity", 1);
+        })
+        .on("mouseout", function() {
+            d3.select(this).style("opacity", 0.8);
+        });
+    
+    // Adicionar texto
+    svg.selectAll("text")
+        .data(root.descendants().filter(d => d.depth && (d.y1 - d.y0) * (d.x1 - d.x0) > 0.03))
+        .join("text")
+        .attr("transform", function(d) {
+            const x = (d.x0 + d.x1) / 2 * 180 / Math.PI;
+            const y = (d.y0 + d.y1) / 2;
+            return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
+        })
+        .attr("dy", "0.35em")
+        .attr("text-anchor", "middle")
+        .attr("font-size", d => Math.min(12, (d.y1 - d.y0) * 0.8))
+        .text(d => d.data.name)
+        .style("fill", "#333")
+        .style("pointer-events", "none");
+    
     return html`
-        <h3>☀️ Visualização Hierárquica (Sunburst)</h3>
-        <p>Abaixo está o nó raiz para a visualização D3:</p>
-        <pre>${JSON.stringify(flareData.children.slice(0, 3), null, 2)}...</pre>
-        <p style="color: red;">**AVISO:** A renderização completa do Sunburst requer as funções D3.js de visualização.</p>
+    <div style="text-align: center;">
+        <h3>☀️ Visualização Hierárquica dos Resultados</h3>
+        <p style="margin-bottom: 15px; color: #666;">
+            Distribuição de votos por partido e distrito
+        </p>
+        ${svg.node()}
+        <div style="margin-top: 15px; font-size: 12px; color: #888;">
+            <strong>Legenda:</strong> Círculo interno = Partidos, Círculo externo = Distritos
+        </div>
+    </div>
     `;
 }
 ```
