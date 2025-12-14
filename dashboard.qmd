@@ -1,39 +1,33 @@
 ---
-title: "Resultados Eleitorais Legislativas 2025"
-format: 
-  html:
-    theme: flatly
-    toc: true
-    code-fold: true
+title: "Portugal — Legislativas 2025"
+format:
+    dashboard:
+        orientation: columns
 ---
-# Introdução
-Dashboard interativo dos resultados eleitorais 2025.
 
+# start
+
+## Column {width="25%"}
+### Filtros e Métricas
 ```{ojs}
-// CÉLULA 1: Carregamento de Dados
+// CÉLULA 1: Carregamento de Dados e Configurações Iniciais
 // | label: load-data
 // | echo: false
 
-// Carregar scripts e CSS
+// DECISÃO DE DESIGN: Carregamento de bibliotecas externas via CDN para
+// melhor performance e manutenção simplificada
 html`
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/d3@7"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 `
 
-// Carregar GeoJSON dos distritos
+// Carregar dados geoespaciais e eleitorais
 districtData = FileAttachment("data/ContinenteDistritos.geojson").json()
-
-// Carregar dados eleitorais
 electionData = FileAttachment("data/legislativas.json").json()
-```
 
-```{ojs}
-// CÉLULA 2: Configuração e Variáveis
-// | label: setup
-// | echo: false
-
-// Cores dos Partidos
+// DECISÃO DE DESIGN: Paleta de cores baseada nas cores oficiais dos partidos
+// para facilitar o reconhecimento visual imediato
 function getPartyColors() {
     return {
         "PS": "#dd438b",
@@ -59,53 +53,31 @@ function getPartyColors() {
     };
 }
 
-// Lista de partidos (excluindo Inscritos e Votantes)
 function getPartidos() {
    return Object.keys(electionData).filter(key => 
-        key !== "Inscritos" 
-        && key !== "Votantes"
-        // 🛑 NOVO: Excluir Brancos e Nulos
-        && key !== "Brancos" 
-        && key !== "Nulos"
+        key !== "Inscritos" && key !== "Votantes" && key !== "Brancos" && key !== "Nulos"
     );
 }
 
-// Variável reativa para distrito selecionado
 mutable selectedDistrict = "Lisboa"
 
-// Dropdown para seleção de partido
-viewof selectedParty = Inputs.select(getPartidos(), {
-    label: "Selecionar Partido para Mapa de Intensidade",
-    value: "PS"
-})
+// DECISÃO DE DESIGN: Dropdowns com valores padrão intuitivos
+// "Todos" como primeira opção para permitir visão geral
+viewof selectedParty = Inputs.select(
+    ["Todos", ...getPartidos()], 
+    { label: "Selecionar Partido", value: "Todos" }
+)
 
-// Dropdown para modo do mapa
 viewof selectedMapMode = Inputs.select(['VENCEDOR', 'INTENSIDADE'], {
-    label: "Modo de Visualização do Mapa",
-    value: 'VENCEDOR'
+    label: "Modo de Visualização", value: 'VENCEDOR'
 })
 
-```
-
-# Funções de Análise e Métricas
-
-```{ojs}
-// CÉLULA 3: Funções de Análise
-// | label: analysis-functions
-// | echo: false
-
-// Função para converter valores especiais
 function parseVotos(valor) {
-    if (valor === "-" || valor === "c.r." || valor === undefined || valor === null) {
-        return 0;
-    }
-    if (typeof valor === 'string') {
-        return parseInt(valor.replace(/\s/g, '')) || 0;
-    }
+    if (valor === "-" || valor === "c.r." || valor === undefined || valor === null) return 0;
+    if (typeof valor === 'string') return parseInt(valor.replace(/\s/g, '')) || 0;
     return Number(valor) || 0;
 }
 
-// Função para obter resultados de um distrito
 function getDistrictResults(districtName) {
     const results = [];
     const partidos = getPartidos();
@@ -124,20 +96,17 @@ function getDistrictResults(districtName) {
     return results.sort((a, b) => b.votos - a.votos);
 }
 
-// Função para obter o partido vencedor
 function getWinner(districtName) {
     const results = getDistrictResults(districtName);
     return results.length > 0 ? results[0].partido : null;
 }
 
-// Função para obter a cor do vencedor
 function getWinnerColor(districtName) {
     const winner = getWinner(districtName);
     const colors = getPartyColors();
     return winner ? (colors[winner] || "#b3afaf") : "#b3afaf";
 }
 
-// Função para calcular intensidade
 function calcularIntensidade(partido, distrito) {
     const votosPartido = parseVotos(electionData[partido]?.[distrito]);
     const votosDistrito = electionData.Votantes[distrito] || 1;
@@ -146,241 +115,631 @@ function calcularIntensidade(partido, distrito) {
     return Math.min(0.9, Math.max(0.1, votosPartido / votosDistrito));
 }
 
-// Cálculo de métricas nacionais
+// Funções para cálculo de métricas de abstenção
+function getAbstentionByDistrict(districtName) {
+    const inscritos = electionData.Inscritos[districtName] || 0;
+    const votantes = electionData.Votantes[districtName] || 0;
+    return ((inscritos - votantes) / inscritos * 100).toFixed(2);
+}
+
+function getHighestAbstentionDistrict() {
+    let maxAbstention = 0;
+    let district = "";
+    let details = {};
+    
+    for (const distrito in electionData.Inscritos) {
+        if (distrito !== "Total") {
+            const abstencao = parseFloat(getAbstentionByDistrict(distrito));
+            if (abstencao > maxAbstention) {
+                maxAbstention = abstencao;
+                district = distrito;
+                details = {
+                    inscritos: electionData.Inscritos[distrito],
+                    votantes: electionData.Votantes[distrito]
+                };
+            }
+        }
+    }
+    return { district, abstencao: maxAbstention, ...details };
+}
+
+function getLowestAbstentionDistrict() {
+    let minAbstention = 100;
+    let district = "";
+    let details = {};
+    
+    for (const distrito in electionData.Inscritos) {
+        if (distrito !== "Total") {
+            const abstencao = parseFloat(getAbstentionByDistrict(distrito));
+            if (abstencao < minAbstention) {
+                minAbstention = abstencao;
+                district = distrito;
+                details = {
+                    inscritos: electionData.Inscritos[distrito],
+                    votantes: electionData.Votantes[distrito]
+                };
+            }
+        }
+    }
+    return { district, abstencao: minAbstention, ...details };
+}
+
+// Função para obter votos do partido selecionado por distrito
+function getPartyVotesByDistrict(partido) {
+    const resultados = [];
+    
+    for (const distrito in electionData.Inscritos) {
+        if (distrito !== "Total" && distrito !== "undefined") {
+            const votos = parseVotos(electionData[partido]?.[distrito]);
+            if (votos > 0) {
+                const votantes = electionData.Votantes[distrito] || 1;
+                const percentagem = (votos / votantes * 100).toFixed(2);
+                resultados.push({
+                    distrito: distrito,
+                    votos: votos,
+                    percentagem: percentagem
+                });
+            }
+        }
+    }
+    
+    return resultados.sort((a, b) => b.votos - a.votos);
+}
+
+// Métricas nacionais
 totalInscritos = electionData.Inscritos.Total
 totalVotantes = electionData.Votantes.Total
 taxaAbstencao = ((totalInscritos - totalVotantes) / totalInscritos * 100).toFixed(2)
 taxaParticipacao = (totalVotantes / totalInscritos * 100).toFixed(2)
 
-// Encontrar vencedor nacional
 function getNationalWinner() {
     const resultados = getDistrictResults("Total");
     return resultados.length > 0 ? resultados[0] : null;
 }
 
 vencedorNacional = getNationalWinner()
+highestAbstention = getHighestAbstentionDistrict()
+lowestAbstention = getLowestAbstentionDistrict()
+
+// DECISÃO DE DESIGN: Cards de métricas com design clean e hierarquia visual clara
+// Cores semânticas (verde para positivo, vermelho para negativo, azul para neutro)
+html`
+<div style="display: flex; flex-direction: column; gap: 15px;">
+    <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center;">
+        <div style="font-size: 12px; color: #666; margin-bottom: 8px;">Total de Inscritos</div>
+        <div style="font-size: 24px; font-weight: bold; color: #333;">${totalInscritos.toLocaleString('pt-PT')}</div>
+    </div>
+    
+    <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center;">
+        <div style="font-size: 12px; color: #666; margin-bottom: 8px;">Total de Votantes</div>
+        <div style="font-size: 24px; font-weight: bold; color: #28a745;">${totalVotantes.toLocaleString('pt-PT')}</div>
+    </div>
+    
+    <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center;">
+        <div style="font-size: 12px; color: #666; margin-bottom: 8px;">Taxa de Abstenção</div>
+        <div style="font-size: 24px; font-weight: bold; color: #dc3545;">${taxaAbstencao}%</div>
+    </div>
+    
+    <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center;">
+        <div style="font-size: 12px; color: #666; margin-bottom: 8px;">Partido Mais Votado</div>
+        <div style="font-size: 20px; font-weight: bold; color: ${vencedorNacional ? getPartyColors()[vencedorNacional.partido] : '#333'}">
+            ${vencedorNacional ? vencedorNacional.partido : 'N/A'}
+        </div>
+        <div style="font-size: 12px; color: #666; margin-top: 5px;">
+            ${vencedorNacional ? vencedorNacional.votos.toLocaleString('pt-PT') : '0'} votos
+            (${vencedorNacional ? vencedorNacional.percentagem : '0'}%)
+        </div>
+    </div>
+    
+    <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center;">
+        <div style="font-size: 12px; color: #666; margin-bottom: 8px;">Maior Abstenção</div>
+        <div style="font-size: 18px; font-weight: bold; color: #dc3545;">
+            ${highestAbstention.district}
+        </div>
+        <div style="font-size: 12px; color: #666; margin-top: 5px;">
+            ${highestAbstention.abstencao}%<br>
+            <small>(${highestAbstention.votantes?.toLocaleString('pt-PT') || '0'} votantes)</small>
+        </div>
+    </div>
+    
+    <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center;">
+        <div style="font-size: 12px; color: #666; margin-bottom: 8px;">Menor Abstenção</div>
+        <div style="font-size: 18px; font-weight: bold; color: #28a745;">
+            ${lowestAbstention.district}
+        </div>
+        <div style="font-size: 12px; color: #666; margin-top: 5px;">
+            ${lowestAbstention.abstencao}%<br>
+            <small>(${lowestAbstention.votantes?.toLocaleString('pt-PT') || '0'} votantes)</small>
+        </div>
+    </div>
+</div>
+`
 ```
 
-
-# Visualização: Mapa Interativo (Leaflet)
+## Column {width="50%"}
+### Mapas Interativos
+#### Mapa Principal
 
 ```{ojs}
-// CÉLULA 4: Mapa Leaflet
-// | label: map
+// CÉLULA: Mapa Principal (modo vencedor/intensidade)
 // | echo: false
 
-// Criar container para o mapa
-mapDiv = html`<div id="map-container" style="height: 500px; border-radius: 8px; border: 1px solid #ddd;"></div>`
+mutable mapInstance = null;
+mutable geojsonLayerInstance = null;
+mutable legendControl = null;
 
-// Inicializar mapa quando a célula for executada
+function getStyleMainMap(feature) {
+    const distrito = feature.properties.Distrito;
+    const isSelected = distrito === mutable selectedDistrict;
+    
+    let fillColor, fillOpacity;
+    
+    if (selectedParty === 'Todos' || selectedMapMode === 'VENCEDOR') {
+        fillColor = getWinnerColor(distrito);
+        fillOpacity = 0.7;
+    } else {
+        const intensidade = calcularIntensidade(selectedParty, distrito);
+        fillColor = getPartyColors()[selectedParty] || "#b3afaf";
+        fillOpacity = Math.max(0.2, intensidade);
+    }
+    
+    return {
+        fillColor: fillColor,
+        fillOpacity: fillOpacity,
+        color: isSelected ? '#000000' : '#333333',
+        weight: isSelected ? 3 : 1,
+        opacity: 0.8
+    };
+}
+
+// Container para o mapa principal
+mainMapDiv = html`<div id="main-map-container" style="height: 300px; border-radius: 8px; width: 100%; position: relative;"></div>`
+
+// Função para criar legenda do mapa principal
+function createMainLegend() {
+    const colors = getPartyColors();
+    const legendDiv = L.DomUtil.create('div', 'legend');
+    
+    if (selectedMapMode === 'VENCEDOR' || selectedParty === 'Todos') {
+        legendDiv.innerHTML = `
+            <h4 style="margin: 0 0 10px 0; font-size: 14px;">Partidos Vencedores</h4>
+            <div style="max-height: 150px; overflow-y: auto;">
+                ${Object.entries(colors).map(([partido, cor]) => `
+                    <div style="display: flex; align-items: center; margin-bottom: 5px; font-size: 11px;">
+                        <div style="width: 15px; height: 15px; background-color: ${cor}; margin-right: 8px; border: 1px solid #333;"></div>
+                        <span>${partido}</span>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    } else {
+        legendDiv.innerHTML = `
+            <h4 style="margin: 0 0 10px 0; font-size: 14px;">${selectedParty}</h4>
+            <div style="font-size: 11px;">
+                <div style="display: flex; align-items: center; margin-bottom: 5px;">
+                    <div style="width: 15px; height: 15px; background-color: ${colors[selectedParty]}; opacity: 0.1; margin-right: 8px; border: 1px solid #333;"></div>
+                    <span>0-10% dos votos</span>
+                </div>
+                <div style="display: flex; align-items: center; margin-bottom: 5px;">
+                    <div style="width: 15px; height: 15px; background-color: ${colors[selectedParty]}; opacity: 0.5; margin-right: 8px; border: 1px solid #333;"></div>
+                    <span>~50% dos votos</span>
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <div style="width: 15px; height: 15px; background-color: ${colors[selectedParty]}; opacity: 0.9; margin-right: 8px; border: 1px solid #333;"></div>
+                    <span>>90% dos votos</span>
+                </div>
+            </div>
+        `;
+    }
+    
+    return legendDiv;
+}
+
 {
-    // Aguardar Leaflet carregar
+    selectedMapMode, selectedParty, mutable selectedDistrict;
+    
     if (typeof L !== 'undefined') {
-        const map = L.map('map-container').setView([39.5, -8.0], 6);
-        
-        // Adicionar camada base
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
-        
-        // Função para obter estilo do polígono
-        function getStyle(feature) {
-            const distrito = feature.properties.Distrito;
-            const isSelected = distrito === mutable selectedDistrict;
+        if (!mutable mapInstance) {
+            mutable mapInstance = L.map('main-map-container').setView([39.5, -8.0], 6);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 10,
+                minZoom: 6
+            }).addTo(mutable mapInstance);
             
-            let fillColor, fillOpacity;
-            
-            if (selectedMapMode === 'VENCEDOR') {
-                fillColor = getWinnerColor(distrito);
-                fillOpacity = 0.7;
-            } else {
-                const intensidade = calcularIntensidade(selectedParty, distrito);
-                fillColor = getPartyColors()[selectedParty] || "#b3afaf";
-                fillOpacity = Math.max(0.2, intensidade);
+            if (window.ResizeObserver) {
+                const resizeObserver = new ResizeObserver(() => {
+                    if (mutable mapInstance) {
+                        mutable mapInstance.invalidateSize();
+                    }
+                });
+                const mapContainer = document.getElementById('main-map-container');
+                if (mapContainer) {
+                    resizeObserver.observe(mapContainer);
+                }
             }
-            
-            return {
-                fillColor: fillColor,
-                fillOpacity: fillOpacity,
-                color: isSelected ? '#000000' : '#333333',
-                weight: isSelected ? 3 : 1,
-                opacity: 0.8
-            };
+        }
+
+        const map = mutable mapInstance;
+        
+        // Atualizar legenda
+        if (mutable legendControl) {
+            map.removeControl(mutable legendControl);
         }
         
-        // Adicionar camada GeoJSON
-        const geojsonLayer = L.geoJSON(districtData, {
-            style: getStyle,
+        mutable legendControl = L.control({position: 'bottomright'});
+        mutable legendControl.onAdd = function(map) {
+            return createMainLegend();
+        };
+        mutable legendControl.addTo(map);
+        
+        // Atualizar camada GeoJSON
+        if (mutable geojsonLayerInstance) {
+            map.removeLayer(mutable geojsonLayerInstance);
+        }
+        
+        mutable geojsonLayerInstance = L.geoJSON(districtData, {
+            style: (feature) => getStyleMainMap(feature),
             onEachFeature: function(feature, layer) {
                 const nome = feature.properties.Distrito;
-                const vencedor = getWinner(nome);
                 const votantes = electionData.Votantes[nome] || 0;
                 const inscritos = electionData.Inscritos[nome] || 1;
                 const abstencao = (((inscritos - votantes) / inscritos) * 100).toFixed(1);
+                const winner = getWinner(nome);
+                const colors = getPartyColors();
+                
+                let popupContent = `<div style="min-width: 300px; max-height: 400px; overflow-y: auto;">`;
+                popupContent += `<h3 style="margin-top: 0; color: #333; border-bottom: 2px solid ${colors[winner] || '#ccc'}; padding-bottom: 5px;">
+                    ${nome}
+                </h3>`;
+                
+                // Estatísticas gerais
+                popupContent += `<div style="background: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <span><strong>Inscritos:</strong></span>
+                        <span>${inscritos.toLocaleString('pt-PT')}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <span><strong>Votantes:</strong></span>
+                        <span>${votantes.toLocaleString('pt-PT')}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <span><strong>Abstenção:</strong></span>
+                        <span style="color: #dc3545; font-weight: bold;">${abstencao}%</span>
+                    </div>
+                </div>`;
+                
+                // Resultados por partido (top 5)
+                const results = getDistrictResults(nome).slice(0, 5);
+                popupContent += `<h4 style="margin: 0 0 10px 0; font-size: 14px;">Top 5 Partidos:</h4>`;
+                popupContent += `<table style="width: 100%; border-collapse: collapse; font-size: 12px;">`;
+                popupContent += `<tr style="background: #e9ecef;">
+                    <th style="text-align: left; padding: 8px;">Partido</th>
+                    <th style="text-align: right; padding: 8px;">Votos</th>
+                    <th style="text-align: right; padding: 8px;">%</th>
+                </tr>`;
+                
+                results.forEach(result => {
+                    const color = colors[result.partido] || '#999';
+                    popupContent += `<tr style="border-bottom: 1px solid #dee2e6;">
+                        <td style="padding: 8px;">
+                            <div style="display: flex; align-items: center;">
+                                <div style="width: 12px; height: 12px; background-color: ${color}; margin-right: 8px; border-radius: 2px;"></div>
+                                ${result.partido}
+                            </div>
+                        </td>
+                        <td style="text-align: right; padding: 8px;">${result.votos.toLocaleString('pt-PT')}</td>
+                        <td style="text-align: right; padding: 8px; font-weight: bold;">${result.percentagem}%</td>
+                    </tr>`;
+                });
+                
+                popupContent += `</table>`;
+                
+                if (winner) {
+                    const votosVencedor = parseVotos(electionData[winner]?.[nome]) || 0;
+                    const percentagemVencedor = ((votosVencedor / votantes) * 100).toFixed(1);
+                    popupContent += `<div style="margin-top: 15px; padding: 10px; background-color: ${colors[winner]}20; border-left: 4px solid ${colors[winner]};">
+                        <strong>🎉 Partido Vencedor:</strong><br>
+                        <span style="color: ${colors[winner]}; font-weight: bold;">${winner}</span> com ${percentagemVencedor}% dos votos
+                    </div>`;
+                }
+                
+                popupContent += `<div style="margin-top: 15px; font-size: 11px; color: #666; text-align: center;">
+                    <em>Clique fora para fechar este popup</em>
+                </div>`;
+                popupContent += `</div>`;
+                
+                layer.bindPopup(popupContent, {
+                    maxWidth: 400,
+                    minWidth: 350
+                });
                 
                 // Tooltip
-                let tooltipContent = `
-                    <strong>${nome}</strong><br/>
-                    Vencedor: ${vencedor || 'N/A'}<br/>
-                    Votantes: ${votantes.toLocaleString('pt-PT')}<br/>
-                    Abstenção: ${abstencao}%
-                `;
-                
-                if (selectedMapMode === 'INTENSIDADE') {
+                let tooltipContent = `<strong>${nome}</strong><br/>`;
+                if (selectedParty === 'Todos' || selectedMapMode === 'VENCEDOR') {
+                    if (winner) {
+                        tooltipContent += `<span style="color:${colors[winner]}; font-weight:bold;">${winner}</span> venceu<br/>`;
+                    }
+                } else {
                     const votosPartido = parseVotos(electionData[selectedParty]?.[nome]);
-                    const percentagem = ((votosPartido / votantes) * 100).toFixed(1);
-                    tooltipContent += `<br/>${selectedParty}: ${votosPartido.toLocaleString('pt-PT')} (${percentagem}%)`;
+                    const percentagemPartido = ((votosPartido / votantes) * 100).toFixed(1);
+                    tooltipContent += `<strong>${selectedParty}</strong>: ${percentagemPartido}%<br/>`;
                 }
+                tooltipContent += `Abstenção: ${abstencao}%`;
                 
                 layer.bindTooltip(tooltipContent);
                 
-                // Eventos
+                // Interações
                 layer.on({
-                    click: function() {
+                    click: function(e) { 
                         mutable selectedDistrict = nome;
+                        layer.openPopup();
                     },
-                    mouseover: function(e) {
-                        layer.setStyle({ weight: 3, color: '#0066cc' });
+                    mouseover: function(e) { 
+                        layer.setStyle({ 
+                            weight: 3, 
+                            color: '#0066cc',
+                            fillOpacity: 0.9
+                        }); 
                     },
-                    mouseout: function(e) {
-                        const style = getStyle(feature);
-                        layer.setStyle(style);
+                    mouseout: function(e) { 
+                        layer.setStyle(getStyleMainMap(feature));
                     }
                 });
             }
         }).addTo(map);
-        
-        // Ajustar mapa aos limites
-        map.fitBounds(geojsonLayer.getBounds());
     }
-}
-
-mapDiv
-```
-# Visualização: Painel de Métricas e Tabela
-```{ojs} 
-// CÉLULA 5: Painel de Métricas
-// | label: metrics
-// | echo: false
-
-html`
-<div class="metrics-panel">
-    <h2>📊 Métricas Eleitorais</h2>
-    <div class="metrics-grid">
-        <div class="metric-card">
-            <div class="metric-value">${totalInscritos.toLocaleString('pt-PT')}</div>
-            <div class="metric-label">Total de Inscritos</div>
+    
+    return html`
+    <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h4 style="margin-top: 0; color: #333; font-size: 14px;">🗺️ Mapa Principal</h4>
+            <span style="font-size: 11px; color: #666; background: #f8f9fa; padding: 3px 8px; border-radius: 12px;">
+                Modo: ${selectedMapMode === 'VENCEDOR' ? 'Partido Vencedor' : 'Intensidade por Partido'}
+            </span>
         </div>
-        <div class="metric-card">
-            <div class="metric-value">${totalVotantes.toLocaleString('pt-PT')}</div>
-            <div class="metric-label">Total de Votantes</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-value">${taxaAbstencao}%</div>
-            <div class="metric-label">Taxa de Abstenção</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-value">${taxaParticipacao}%</div>
-            <div class="metric-label">Taxa de Participação</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-value">${vencedorNacional ? vencedorNacional.partido : 'N/A'}</div>
-            <div class="metric-label">Partido Mais Votado</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-value">${vencedorNacional ? vencedorNacional.votos.toLocaleString('pt-PT') : '0'}</div>
-            <div class="metric-label">Votos do Vencedor Nacional</div>
+        ${mainMapDiv}
+        <div style="margin-top: 10px; font-size: 11px; color: #666; text-align: center;">
+            🔍 Clique num distrito para selecionar
         </div>
     </div>
-</div>
-
-<style>
-.metrics-panel {
-    margin: 20px 0;
-    padding: 20px;
-    background: #f8f9fa;
-    border-radius: 8px;
+    `;
 }
-
-.metrics-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 15px;
-    margin-top: 15px;
-}
-
-.metric-card {
-    background: white;
-    padding: 15px;
-    border-radius: 6px;
-    border-left: 4px solid #007bff;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.metric-value {
-    font-size: 1.8em;
-    font-weight: bold;
-    color: #333;
-}
-
-.metric-label {
-    font-size: 0.9em;
-    color: #666;
-    margin-top: 5px;
-}
-</style>
-`
 ```
+#### Mapa do Partido Selecionado
+
 ```{ojs} 
-// CÉLULA 6: Tabela de Resultados
-// | label: results-table
+// CÉLULA: Mapa do Partido Selecionado
+// | echo: false
+
+mutable partyMapInstance = null;
+mutable partyGeojsonLayerInstance = null;
+
+function getStylePartyMap(feature) {
+    const distrito = feature.properties.Distrito;
+    const isSelected = distrito === mutable selectedDistrict;
+    
+    let fillColor, fillOpacity;
+    
+    if (selectedParty === 'Todos') {
+        // Se nenhum partido está selecionado, mostrar mapa em escala de cinza
+        fillColor = "#b3afaf";
+        fillOpacity = 0.5;
+    } else {
+        // Usar a cor do partido selecionado
+        fillColor = getPartyColors()[selectedParty] || "#b3afaf";
+        
+        // Calcular intensidade baseada na percentagem de votos
+        const votosPartido = parseVotos(electionData[selectedParty]?.[distrito]);
+        const votantes = electionData.Votantes[distrito] || 1;
+        const percentagem = votosPartido / votantes;
+        
+        // Definir opacidade baseada na intensidade (mínimo 0.2, máximo 0.9)
+        fillOpacity = Math.max(0.2, Math.min(0.9, percentagem * 2));
+    }
+    
+    return {
+        fillColor: fillColor,
+        fillOpacity: fillOpacity,
+        color: isSelected ? '#000000' : '#333333',
+        weight: isSelected ? 3 : 1,
+        opacity: 0.8
+    };
+}
+
+// Container para o mapa do partido
+partyMapDiv = html`<div id="party-map-container" style="height: 300px; border-radius: 8px; width: 100%; position: relative;"></div>`
+
+{
+    selectedParty, mutable selectedDistrict;
+    
+    if (typeof L !== 'undefined') {
+        if (!mutable partyMapInstance) {
+            mutable partyMapInstance = L.map('party-map-container').setView([39.5, -8.0], 6);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 10,
+                minZoom: 6
+            }).addTo(mutable partyMapInstance);
+            
+            if (window.ResizeObserver) {
+                const resizeObserver = new ResizeObserver(() => {
+                    if (mutable partyMapInstance) {
+                        mutable partyMapInstance.invalidateSize();
+                    }
+                });
+                const mapContainer = document.getElementById('party-map-container');
+                if (mapContainer) {
+                    resizeObserver.observe(mapContainer);
+                }
+            }
+        }
+
+        const map = mutable partyMapInstance;
+        
+        // Atualizar camada GeoJSON
+        if (mutable partyGeojsonLayerInstance) {
+            map.removeLayer(mutable partyGeojsonLayerInstance);
+        }
+        
+        mutable partyGeojsonLayerInstance = L.geoJSON(districtData, {
+            style: (feature) => getStylePartyMap(feature),
+            onEachFeature: function(feature, layer) {
+                const nome = feature.properties.Distrito;
+                
+                layer.on({
+                    click: function(e) { 
+                        mutable selectedDistrict = nome;
+                    }
+                });
+            }
+        }).addTo(map);
+    }
+    
+    return html`
+    <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h4 style="margin-top: 0; color: #333; font-size: 14px;">🎯 Mapa do Partido Selecionado</h4>
+            ${selectedParty !== 'Todos' ? html`
+            <span style="font-size: 11px; color: #666; background: #f8f9fa; padding: 3px 8px; border-radius: 12px; display: flex; align-items: center;">
+                <div style="width: 10px; height: 10px; background-color: ${getPartyColors()[selectedParty] || '#b3afaf'}; margin-right: 5px; border-radius: 50%;"></div>
+                ${selectedParty}
+            </span>` : html`
+            <span style="font-size: 11px; color: #666; background: #f8f9fa; padding: 3px 8px; border-radius: 12px;">
+                Nenhum partido selecionado
+            </span>`}
+        </div>
+        ${partyMapDiv}
+        <div style="margin-top: 10px; font-size: 11px; color: #666; text-align: center;">
+            ${selectedParty !== 'Todos' ? 
+                `💡 Intensidade da cor mostra força do ${selectedParty} em cada distrito` : 
+                '🔍 Selecione um partido no dropdown para ver o mapa'}
+        </div>
+    </div>
+    `;
+}
+```
+## Column {width="25%"}
+### Resultados Detalhados
+#### Resultados do Distrito
+```{ojs}
+// CÉLULA: Tabela de Resultados do Distrito Selecionado
 // | echo: false
 
 {
     const results = getDistrictResults(mutable selectedDistrict);
     const totalVotosDistrito = electionData.Votantes[mutable selectedDistrict] || 1;
-    
-    const tableData = results.map(r => ({
-        Partido: r.partido,
-        Votos: r.votos,
-        Percentagem: `${((r.votos / totalVotosDistrito) * 100).toFixed(2)}%`
-    }));
+    const abstencaoDistrito = getAbstentionByDistrict(mutable selectedDistrict);
+    const winner = getWinner(mutable selectedDistrict);
     
     return html`
-    <div class="table-container">
-        <h3>🗳️ Resultados no Distrito: <strong>${mutable selectedDistrict}</strong></h3>
-        <p>Total de votantes: ${totalVotosDistrito.toLocaleString('pt-PT')}</p>
-        ${Inputs.table(tableData, {
-            columns: ["Partido", "Votos", "Percentagem"],
-            format: {
-                Votos: d => d.toLocaleString('pt-PT'),
-                Partido: d => {
-                    const color = getPartyColors()[d] || '#999';
-                    return html`<span style="color:${color}; font-weight:bold;">${d}</span>`;
-                }
-            },
-            rows: 10,
-            sort: "Votos",
-            reverse: true
-        })}
+    <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <div>
+                <h4 style="margin-top: 0; color: #333; font-size: 14px; display: inline-block; margin-right: 10px;">
+                    🗳️ Distrito: <strong>${mutable selectedDistrict}</strong>
+                </h4>
+                ${winner ? html`
+                <span style="background: ${getPartyColors()[winner]}20; color: ${getPartyColors()[winner]}; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">
+                    🏆 ${winner}
+                </span>` : ''}
+            </div>
+        </div>
+        
+        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <div style="flex: 1; background: #f8f9fa; padding: 8px; border-radius: 6px; text-align: center;">
+                <div style="font-size: 10px; color: #666; margin-bottom: 3px;">Votantes</div>
+                <div style="font-size: 16px; font-weight: bold; color: #28a745;">${totalVotosDistrito.toLocaleString('pt-PT')}</div>
+            </div>
+            <div style="flex: 1; background: #f8f9fa; padding: 8px; border-radius: 6px; text-align: center;">
+                <div style="font-size: 10px; color: #666; margin-bottom: 3px;">Abstenção</div>
+                <div style="font-size: 16px; font-weight: bold; color: #dc3545;">${abstencaoDistrito}%</div>
+            </div>
+        </div>
+        
+        <div style="max-height: 200px; overflow-y: auto; margin-bottom: 10px;">
+            ${results.slice(0, 8).map((result, index) => {
+                const color = getPartyColors()[result.partido] || '#b3afaf';
+                return html`
+                <div style="display: flex; align-items: center; padding: 6px 0; border-bottom: 1px solid #f0f0f0;">
+                    <div style="width: 18px; text-align: center; font-size: 11px; color: #666;">${index + 1}</div>
+                    <div style="width: 10px; height: 10px; background-color: ${color}; margin: 0 8px;"></div>
+                    <div style="flex: 1; font-size: 11px; font-weight: ${index === 0 ? 'bold' : 'normal'}">${result.partido}</div>
+                    <div style="font-size: 11px; font-weight: bold; margin-right: 8px;">${result.votos.toLocaleString('pt-PT')}</div>
+                    <div style="font-size: 11px; color: #666; min-width: 40px; text-align: right;">${result.percentagem}%</div>
+                </div>`;
+            })}
+        </div>
+        
+        <div style="margin-top: 10px; font-size: 10px; color: #666; text-align: center;">
+            <em>Mostrando top 8 partidos no distrito</em>
+        </div>
     </div>
-    
-    <style>
-    .table-container {
-        margin-top: 20px;
-        padding: 15px;
-        background: white;
-        border-radius: 6px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    </style>
     `;
 }
-
 ```
-
+#### Votos do Partido por Distrito
 ```{ojs} 
-// CÉLULA 7: Gráfico Sunburst
+// CÉLULA: Tabela de Votos do Partido Selecionado por Distrito
+// | echo: false
+
+{
+    if (selectedParty !== 'Todos') {
+        const partyResults = getPartyVotesByDistrict(selectedParty);
+        const partyColor = getPartyColors()[selectedParty] || '#b3afaf';
+        
+        return html`
+        <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(223, 22, 22, 0.1); margin-top: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h4 style="margin-top: 0; color: #333; font-size: 14px;">
+                    📊 ${selectedParty} por Distrito
+                </h4>
+                <div style="display: flex; align-items: center; font-size: 11px; color: #666;">
+                    <div style="width: 10px; height: 10px; background-color: ${partyColor}; margin-right: 5px; border-radius: 50%;"></div>
+                    Total: ${partyResults.reduce((sum, r) => sum + r.votos, 0).toLocaleString('pt-PT')} votos
+                </div>
+            </div>
+            
+            <div style="max-height: 250px; overflow-y: auto;">
+                ${partyResults.slice(0, 15).map((result, index) => {
+                    const isSelected = result.distrito === mutable selectedDistrict;
+                    return html`
+                    <div style="display: flex; align-items: center; padding: 6px 0; border-bottom: 1px solid #f0f0f0; background: ${isSelected ? '#f8f9fa' : 'transparent'};">
+                        <div style="width: 18px; text-align: center; font-size: 11px; color: #666;">${index + 1}</div>
+                        <div style="flex: 1; font-size: 11px; font-weight: ${isSelected ? 'bold' : 'normal'}">${result.distrito}</div>
+                        <div style="font-size: 11px; font-weight: bold; margin-right: 8px;">${result.votos.toLocaleString('pt-PT')}</div>
+                        <div style="font-size: 11px; color: #666; min-width: 40px; text-align: right;">${result.percentagem}%</div>
+                    </div>`;
+                })}
+            </div>
+            
+            <div style="margin-top: 10px; font-size: 10px; color: #666; text-align: center;">
+                <em>Mostrando top 15 distritos para ${selectedParty}</em>
+            </div>
+        </div>
+        `;
+    } else {
+        return html`
+        <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 10px; text-align: center;">
+            <div style="color: #666; font-size: 12px; margin-bottom: 10px;">
+                Selecione um partido no dropdown para ver os votos por distrito
+            </div>
+            <div style="font-size: 36px; color: #e9ecef; margin: 20px 0;">
+                🗳️
+            </div>
+            <div style="color: #999; font-size: 11px;">
+                A tabela mostrará os votos do partido selecionado em todos os distritos
+            </div>
+        </div>
+        `;
+    }
+}
+```
+# start 2
+## Column {width="25%"}
+### Resultados Detalhados
+```{ojs} 
+// CÉLULA 5: Gráfico Sunburst
 // | label: sunburst-chart
 // | echo: false
 
@@ -456,10 +815,10 @@ chart = {
   const arc = d3.arc()
       .startAngle(d => d.x0)
       .endAngle(d => d.x1)
-      // !!! CORREÇÃO APLICADA AQUI: REMOVIDO padAngle e padRadius para evitar espaços !!!
       .innerRadius(d => d.y0 * radius)
-      // O -1 no outerRadius garante um pequeno espaçamento entre anéis (profundidades)
-      .outerRadius(d => Math.max(d.y0 * radius, d.y1 * radius - 1)) 
+      // ** A CORREÇÃO: Usar D.Y1 * RADIUS sem subtrair nada **
+      .outerRadius(d => d.y1 * radius) 
+      .cornerRadius(0); // Garantir que não há arredondamento angular
 
   // Criar o contentor SVG
   const svg = d3.create("svg")
