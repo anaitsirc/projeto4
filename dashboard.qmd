@@ -3,6 +3,7 @@ title: "Portugal — Legislativas 2025"
 format:
     dashboard:
         orientation: columns
+        columns: 3
 ---
 
 # start
@@ -25,6 +26,20 @@ html`
 // Carregar dados geoespaciais e eleitorais
 districtData = FileAttachment("data/ContinenteDistritos.geojson").json()
 electionData = FileAttachment("data/legislativas.json").json()
+
+function debugDistrict(districtName) {
+    console.log("=== DEBUG para distrito:", districtName, "===");
+    console.log("1. getWinner(districtName):", getWinner(districtName));
+    console.log("2. getWinnerColor(districtName):", getWinnerColor(districtName));
+    
+    const results = getDistrictResults(districtName);
+    console.log("3. Resultados para", districtName, ":", results.slice(0, 3));
+    
+    if (results.length > 0) {
+        console.log("4. Vencedor:", results[0].partido, "com", results[0].votos, "votos");
+        console.log("5. Cor do vencedor:", getPartyColors()[results[0].partido]);
+    }
+}
 
 // DECISÃO DE DESIGN: Paleta de cores baseada nas cores oficiais dos partidos
 // para facilitar o reconhecimento visual imediato
@@ -255,8 +270,8 @@ html`
 </div>
 `
 ```
-
-## Column {width="50%"}
+## Row
+## Column {width="60%"}
 ### Mapas Interativos
 #### Mapa Principal
 
@@ -274,14 +289,33 @@ function getStyleMainMap(feature) {
     
     let fillColor, fillOpacity;
     
-    if (selectedParty === 'Todos' || selectedMapMode === 'VENCEDOR') {
-        fillColor = getWinnerColor(distrito);
+    // DEBUG: Verifique um distrito específico
+    if (distrito === "Lisboa") {
+        console.log("=== Mapa Principal - Modo:", selectedMapMode, "Partido:", selectedParty, "===");
+        console.log("Distrito:", distrito);
+        debugDistrict(distrito);
+    }
+    
+    // SEMPRE que o modo for VENCEDOR, mostrar cor do partido vencedor
+    if (selectedMapMode === 'VENCEDOR') {
+        const winnerColor = getWinnerColor(distrito);
+        console.log("Modo VENCEDOR - Distrito:", distrito, "Cor:", winnerColor);
+        fillColor = winnerColor;
         fillOpacity = 0.7;
-    } else {
+    } 
+    // Quando modo é INTENSIDADE e tem partido selecionado
+    else if (selectedMapMode === 'INTENSIDADE' && selectedParty !== 'Todos') {
         const intensidade = calcularIntensidade(selectedParty, distrito);
         fillColor = getPartyColors()[selectedParty] || "#b3afaf";
         fillOpacity = Math.max(0.2, intensidade);
     }
+    // Caso padrão (INTENSIDADE sem partido ou qualquer outro caso)
+    else {
+        fillColor = getWinnerColor(distrito);
+        fillOpacity = 0.7;
+    }
+    
+    console.log("Distrito", distrito, "- fillColor:", fillColor, "- fillOpacity:", fillOpacity);
     
     return {
         fillColor: fillColor,
@@ -505,10 +539,7 @@ function createMainLegend() {
     </div>
     `;
 }
-```
-#### Mapa do Partido Selecionado
 
-```{ojs} 
 // CÉLULA: Mapa do Partido Selecionado
 // | echo: false
 
