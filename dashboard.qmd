@@ -6,7 +6,7 @@ format:
         columns: 3
 ---
 
-# start
+# Stats
 
 ## Column {width="25%"}
 ### Filtros e Métricas
@@ -395,30 +395,7 @@ mainMapDiv = html`<div id="main-map-container" style="height: 300px; border-radi
                     </div>
                 </div>`;
                 
-                const results = votosPorDistrito(nome).slice(0, 5);
-                popupContent += `<h4 style="margin: 0 0 10px 0; font-size: 14px;">Top 5 Partidos:</h4>`;
-                popupContent += `<table style="width: 100%; border-collapse: collapse; font-size: 12px;">`;
-                popupContent += `<tr style="background: #e9ecef;">
-                    <th style="text-align: left; padding: 8px;">Partido</th>
-                    <th style="text-align: right; padding: 8px;">Votos</th>
-                    <th style="text-align: right; padding: 8px;">%</th>
-                </tr>`;
                 
-                results.forEach(result => {
-                    const color = colors[result.partido] || '#999';
-                    popupContent += `<tr style="border-bottom: 1px solid #dee2e6;">
-                        <td style="padding: 8px;">
-                            <div style="display: flex; align-items: center;">
-                                <div style="width: 12px; height: 12px; background-color: ${color}; margin-right: 8px; border-radius: 2px;"></div>
-                                ${result.partido}
-                            </div>
-                        </td>
-                        <td style="text-align: right; padding: 8px;">${result.votos.toLocaleString('pt-PT')}</td>
-                        <td style="text-align: right; padding: 8px; font-weight: bold;">${result.percentagem}%</td>
-                    </tr>`;
-                });
-                
-                popupContent += `</table>`;
                 
                 if (winner) {
                     const votosVencedor = parseVotos(electionData[winner]?.[nome]) || 0;
@@ -520,7 +497,8 @@ function getStylePartyMap(feature) {
 partyMapDiv = html`<div id="party-map-container" style="height: 300px; border-radius: 8px; width: 100%; position: relative;"></div>`
 
 {
-    selectedParty, mutable selectedDistrict;
+    selectedParty;
+    selectedDistrict;
     
     if (typeof L !== 'undefined') {
         if (!mutable partyMapInstance) {
@@ -612,17 +590,23 @@ partyMapDiv = html`<div id="party-map-container" style="height: 300px; border-ra
 // | echo: false
 
 {
-    const results = votosPorDistrito(mutable selectedDistrict);
-    const totalVotosDistrito = electionData.Votantes[mutable selectedDistrict] || 1;
-    const abstencaoDistrito = getAbstentionByDistrict(mutable selectedDistrict);
-    const winner = getWinner(mutable selectedDistrict);
+    selectedDistrict;
+    electionData;
+
+    const distritoAtual = selectedDistrict;
+
+    const results = votosPorDistrito(distritoAtual);
+    const totalVotosDistrito = electionData.Votantes[distritoAtual] || 1;
+    const abstencaoDistrito = getAbstentionByDistrict(distritoAtual);
+    const winner = getWinner(distritoAtual);
+
     
     return html`
     <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
             <div>
                 <h4 style="margin-top: 0; color: #333; font-size: 14px; display: inline-block; margin-right: 10px;">
-                    Distrito: <strong>${mutable selectedDistrict}</strong>
+                    Distrito: <strong>${distritoAtual}</strong>
                 </h4>
                 ${winner ? html`
                 <span style="background: ${getPartyColors()[winner]}20; color: ${getPartyColors()[winner]}; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">
@@ -669,6 +653,10 @@ partyMapDiv = html`<div id="party-map-container" style="height: 300px; border-ra
 // | echo: false
 
 {
+    selectedDistrict;
+    electionData;
+
+    const distritoAtual = selectedDistrict;
     if (selectedParty !== 'Todos') {
         const partyResults = partyVotesByDistrict(selectedParty);
         const partyColor = getPartyColors()[selectedParty] || '#b3afaf';
@@ -687,7 +675,7 @@ partyMapDiv = html`<div id="party-map-container" style="height: 300px; border-ra
             
             <div style="max-height: 250px; overflow-y: auto;">
                 ${partyResults.slice(0, 15).map((result, index) => {
-                    const isSelected = result.distrito === mutable selectedDistrict;
+                    const isSelected = result.distrito === distritoAtual;
                     return html`
                     <div style="display: flex; align-items: center; padding: 6px 0; border-bottom: 1px solid #f0f0f0; background: ${isSelected ? '#f8f9fa' : 'transparent'};">
                         <div style="width: 18px; text-align: center; font-size: 11px; color: #666;">${index + 1}</div>
@@ -719,7 +707,7 @@ partyMapDiv = html`<div id="party-map-container" style="height: 300px; border-ra
     }
 }
 ```
-# start 2
+# Piechart
 ## Column {width="25%"}
 ### Resultados Detalhados
 ```{ojs} 
